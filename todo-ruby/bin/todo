@@ -1,0 +1,41 @@
+#!/usr/bin/env ruby
+require_relative "../lib/todo"
+
+list_file = File.expand_path("../todos.json", __dir__)
+list = if File.exist?(list_file)
+  Todo::List.new(JSON.parse(File.read(list_file))["items"].map { |h| Todo::Item.from_h(h) })
+else
+  Todo::List.new
+end
+
+command = ARGV.shift
+
+case command
+when "add"
+  title = ARGV.join(" ").strip
+  abort "Usage: todo add <title>" if title.empty?
+  id = list.add(title)
+  File.write(list_file, list.to_json)
+  puts "Added todo ##{id}: #{title}"
+when "list"
+  if list.items.empty?
+    puts "(no todos)"
+  else
+    list.items.each { |i| puts "[#{i.done? ? 'x' : ' '}] #{i.id}. #{i.title}" }
+  end
+when "done"
+  id = ARGV.first.to_i
+  abort "Usage: todo done <id>" if id == 0
+  list.complete(id)
+  File.write(list_file, list.to_json)
+  puts "Marked todo ##{id} as done"
+when "rm"
+  id = ARGV.first.to_i
+  abort "Usage: todo rm <id>" if id == 0
+  list.remove(id)
+  File.write(list_file, list.to_json)
+  puts "Removed todo ##{id}"
+else
+  puts "Usage: todo <add|list|done|rm> ..."
+  exit 1
+end
