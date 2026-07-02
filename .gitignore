@@ -1,0 +1,8 @@
+# Rust / Cargo
+/target
+**/*.rs.bk
+Cargo.lock.bak
+
+# Local data
+/data
+*.todos.json
