@@ -7,7 +7,8 @@ It exists so you can practice the workflow of:
 2. Reproducing the bugs by running the binary.
 3. Fixing them, then re-running.
 
-See `KNOWN_ISSUES.md` for the full list of seeded bugs and hints.
+See `KNOWN_ISSUES.md` for the full list of seeded bugs and hints, and
+`FIXES.md` for a description of how each one was resolved.
 
 ## Build
 
