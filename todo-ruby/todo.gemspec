@@ -13,7 +13,7 @@ Gem::Specification.new do |spec|
   # PLANTED ISSUE #2 (Setup): required_ruby_version is impossibly high.
   # This causes `bundle install` to fail with a Ruby version mismatch.
   # Fix: change to ">= 3.0.0".
-  spec.required_ruby_version = ">= 99.0.0"
+  spec.required_ruby_version = ">= 3.0.0"
 
   spec.files = Dir["lib/**/*.rb", "bin/*", "README.md"]
   spec.bindir = "bin"

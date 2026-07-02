@@ -33,13 +33,13 @@ module Todo
 
     def initialize(items = [])
       @items = items
+      @next_id = (@items.map(&:id).max || 0) + 1
     end
 
     def add(title)
       raise ArgumentError, "title cannot be empty" if title.nil? || title.strip.empty?
-      # PLANTED ISSUE #3 (Code bug): id is reused and never increments,
-      # so two adds get the same id. Fix: track @next_id and increment.
-      id = @items.length + 1
+      id = @next_id
+      @next_id += 1
       @items << Item.new(id, title)
       id
     end
@@ -47,9 +47,7 @@ module Todo
     def complete(id)
       item = @items.find { |i| i.id == id }
       raise ArgumentError, "no item with id=#{id}" if item.nil?
-      # PLANTED ISSUE #4 (Code bug): `complete!` is misspelled as `complete`.
-      # This raises NoMethodError. Fix: use the correct method name.
-      item.complete
+      item.complete!
     end
 
     def remove(id)
@@ -60,9 +58,7 @@ module Todo
     end
 
     def pending
-      # PLANTED ISSUE #5 (Code bug): filter returns done items instead of pending.
-      # The test expects only items where done? is false.
-      @items.select(&:done?)
+      @items.select { |i| !i.done? }
     end
 
     def to_json(*_args)
