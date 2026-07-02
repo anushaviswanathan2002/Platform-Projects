@@ -1,0 +1,17 @@
+# Binaries
+/counter-app
+/counter
+*.exe
+
+# Go workspace
+go.work
+go.work.sum
+
+# Test artifacts
+*.test
+*.out
+
+# IDE
+.idea/
+.vscode/
+*.swp
