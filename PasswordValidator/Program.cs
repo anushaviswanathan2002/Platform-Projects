@@ -1,5 +1,10 @@
 using System;
 using System.Linq;
+// External dependency: Zxcvbn — Dropbox's password strength estimator.
+// `using Zxcvbn;` exposes the static `Zxcvbn.Zxcvbn` class which collides
+// with its namespace, so we alias the type to `ZxcvbnEstimator` to keep
+// references readable.
+using ZxcvbnEstimator = Zxcvbn.Zxcvbn;
 
 namespace PasswordValidator
 {
@@ -37,6 +42,11 @@ namespace PasswordValidator
                 Console.WriteLine($"Valid    : {result.IsValid}");
                 Console.WriteLine($"Strength : {result.Strength}");
                 Console.WriteLine($"Score    : {result.Score}/100");
+                Console.WriteLine($"Guesses  : {result.Guesses:N0} (Zxcvbn)");
+                if (!string.IsNullOrWhiteSpace(result.Feedback.Warning))
+                {
+                    Console.WriteLine($"Warning  : {result.Feedback.Warning}");
+                }
 
                 if (result.Errors.Count > 0)
                 {
@@ -82,24 +92,20 @@ namespace PasswordValidator
                 result.Errors.Add("Password must contain at least one special character.");
             }
 
-            // BUG #6: Score is calculated by summing points but caps at 100 incorrectly.
-            //         When all rules pass, score is 50, not 100. The cap line is wrong.
-            result.Score = 0;
-            if (password.Length >= 8) result.Score += 20;
-            if (password.Length >= 12) result.Score += 10;
-            if (hasUpper) result.Score += 15;
-            // BUG #7: digit bonus always adds 20 even if there is only 1 digit
-            if (digitCount >= 1) result.Score += 20;
-            if (hasSpecial) result.Score += 15;
-            if (password.Distinct().Count() >= 6) result.Score += 20;
+            // Score and strength are now derived from the Zxcvbn library
+            // (external dependency) instead of the hand-rolled weighted sum.
+            // Zxcvbn returns a score in 0..4 and an entropy-based guess count.
+            var zxResult = ZxcvbnEstimator.Match(password);
+            // Scale the 0..4 library score to 0..100 so the existing UI is unchanged.
+            result.Score = zxResult.Score * 25;
+            result.Guesses = zxResult.Guesses;
+            result.Feedback = zxResult.Feedback;
 
-            // BUG #6 (continued): Off-by-one / wrong cap
-            if (result.Score > 100) result.Score = 100;
-
-            // BUG #8: Strength thresholds are inverted - "Strong" needs score < 60
-            if (result.Score < 40) result.Strength = "Weak";
-            else if (result.Score < 60) result.Strength = "Medium";
-            else if (result.Score < 80) result.Strength = "Strong";
+            // BUG #8 (fixed): strength bands are now derived from the
+            // library score, not the inverted hand-rolled thresholds.
+            if (zxResult.Score <= 1) result.Strength = "Weak";
+            else if (zxResult.Score == 2) result.Strength = "Medium";
+            else if (zxResult.Score == 3) result.Strength = "Strong";
             else result.Strength = "Excellent";
 
             // BUG #9: IsValid is set only after score calculation, but if errors exist
@@ -115,6 +121,10 @@ namespace PasswordValidator
         public bool IsValid { get; set; }
         public string Strength { get; set; } = "Unknown";
         public int Score { get; set; }
+        // Zxcvbn-derived fields exposed by the external dependency.
+        public double Guesses { get; set; }
+        public Zxcvbn.MatchPasswordFeedback Feedback { get; set; }
+            = new Zxcvbn.MatchPasswordFeedback();
         public System.Collections.Generic.List<string> Errors { get; set; }
             = new System.Collections.Generic.List<string>();
     }
