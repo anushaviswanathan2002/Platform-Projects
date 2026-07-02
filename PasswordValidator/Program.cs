@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Linq;
 // External dependency: Zxcvbn — Dropbox's password strength estimator.
 // `using Zxcvbn;` exposes the static `Zxcvbn.Zxcvbn` class which collides
@@ -42,10 +43,14 @@ namespace PasswordValidator
                 Console.WriteLine($"Valid    : {result.IsValid}");
                 Console.WriteLine($"Strength : {result.Strength}");
                 Console.WriteLine($"Score    : {result.Score}/100");
-                Console.WriteLine($"Guesses  : {result.Guesses:N0} (Zxcvbn)");
-                if (!string.IsNullOrWhiteSpace(result.Feedback.Warning))
+                Console.WriteLine($"Entropy  : {result.Entropy:F2} bits (Zxcvbn)");
+                if (!string.IsNullOrWhiteSpace(result.Warning))
                 {
-                    Console.WriteLine($"Warning  : {result.Feedback.Warning}");
+                    Console.WriteLine($"Warning  : {result.Warning}");
+                }
+                foreach (var suggestion in result.Suggestions)
+                {
+                    Console.WriteLine($"Tip      : {suggestion}");
                 }
 
                 if (result.Errors.Count > 0)
@@ -94,12 +99,17 @@ namespace PasswordValidator
 
             // Score and strength are now derived from the Zxcvbn library
             // (external dependency) instead of the hand-rolled weighted sum.
-            // Zxcvbn returns a score in 0..4 and an entropy-based guess count.
-            var zxResult = ZxcvbnEstimator.Match(password);
+            // Zxcvbn returns a score in 0..4 and an entropy estimate in bits.
+            var zxResult = ZxcvbnEstimator.MatchPassword(password, new List<string>());
             // Scale the 0..4 library score to 0..100 so the existing UI is unchanged.
             result.Score = zxResult.Score * 25;
-            result.Guesses = zxResult.Guesses;
-            result.Feedback = zxResult.Feedback;
+            result.Entropy = zxResult.Entropy;
+            result.Warning = zxResult.warning == Zxcvbn.Warning.Default
+                ? string.Empty
+                : Zxcvbn.Utility.GetWarning(zxResult.warning, Zxcvbn.Translation.English);
+            result.Suggestions = zxResult.suggestions
+                .Select(s => Zxcvbn.Utility.GetSuggestion(s, Zxcvbn.Translation.English))
+                .ToList();
 
             // BUG #8 (fixed): strength bands are now derived from the
             // library score, not the inverted hand-rolled thresholds.
@@ -122,9 +132,10 @@ namespace PasswordValidator
         public string Strength { get; set; } = "Unknown";
         public int Score { get; set; }
         // Zxcvbn-derived fields exposed by the external dependency.
-        public double Guesses { get; set; }
-        public Zxcvbn.MatchPasswordFeedback Feedback { get; set; }
-            = new Zxcvbn.MatchPasswordFeedback();
+        public double Entropy { get; set; }
+        public string Warning { get; set; } = string.Empty;
+        public System.Collections.Generic.List<string> Suggestions { get; set; }
+            = new System.Collections.Generic.List<string>();
         public System.Collections.Generic.List<string> Errors { get; set; }
             = new System.Collections.Generic.List<string>();
     }
