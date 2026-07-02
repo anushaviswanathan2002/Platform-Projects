@@ -8,18 +8,18 @@ pub struct Todo {
 }
 
 impl Todo {
-    pub fn new(title: String) -> Self {
-        // Issue 7: id is always 0, so every todo collides on the same id.
-        Todo { id: 0, title, done: false }
+    // Issue 7 fix: id is now supplied by the caller (TodoList::add) so every
+    // todo gets a unique identifier instead of all colliding on 0.
+    pub fn new(id: u32, title: String) -> Self {
+        Todo { id, title, done: false }
     }
 }
 
 #[derive(Debug, Default, Serialize, Deserialize)]
 pub struct TodoList {
     pub items: Vec<Todo>,
-    // Issue 8: we never read this counter, so even if we fix Todo::new,
-    // the auto-increment value would be wrong.
-    #[allow(dead_code)]
+    // Issue 8 fix: counter is the single source of truth for id allocation
+    // and is bumped inside `add`.
     next_id: u32,
 }
 
@@ -32,33 +32,51 @@ impl TodoList {
         self.items.len()
     }
 
-    pub fn add(&mut self, item: Todo) {
-        self.items.push(item);
+    // Issue 8 fix: pull the current counter, push the new todo with that id,
+    // then bump the counter. Returns the assigned id.
+    pub fn add(&mut self, title: String) -> u32 {
+        let id = self.next_id;
+        self.next_id += 1;
+        self.items.push(Todo::new(id, title));
+        id
     }
 
     pub fn get(&self, index: usize) -> Option<&Todo> {
         self.items.get(index)
     }
 
-    pub fn mark_done(&mut self, index: usize) {
-        // Issue 9: silently does nothing on out-of-range instead of
-        // returning a Result the caller can react to.
-        if let Some(t) = self.items.get_mut(index) {
-            t.done = true;
+    // Issue 9 fix: return a Result so the caller can react to bad input
+    // instead of silently doing nothing.
+    pub fn mark_done(&mut self, index: usize) -> Result<(), &'static str> {
+        match self.items.get_mut(index) {
+            Some(t) => {
+                t.done = true;
+                Ok(())
+            }
+            None => Err("todo id out of range"),
         }
     }
 
-    pub fn remove(&mut self, index: usize) {
-        // Issue 10: this panics on out-of-range instead of returning Result.
+    // Issue 10 fix: explicit bounds check returning a Result instead of
+    // panicking on out-of-range indexes.
+    pub fn remove(&mut self, index: usize) -> Result<(), &'static str> {
+        if index >= self.items.len() {
+            return Err("todo id out of range");
+        }
         self.items.remove(index);
+        Ok(())
     }
 
+    // Issues 5 & 11 fix: case-insensitive comparison and short-circuit on an
+    // empty needle so `filter ""` returns no todos.
     pub fn filter(&self, needle: &str) -> Vec<Todo> {
-        // Issue 11: returns a clone of the *whole* list when needle is empty,
-        // instead of an empty Vec. That makes `filter ""` behave like `list`.
+        if needle.is_empty() {
+            return Vec::new();
+        }
+        let needle = needle.to_lowercase();
         self.items
             .iter()
-            .filter(|t| t.title.contains(needle))
+            .filter(|t| t.title.to_lowercase().contains(&needle))
             .cloned()
             .collect()
     }

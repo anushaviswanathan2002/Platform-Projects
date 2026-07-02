@@ -2,62 +2,79 @@ mod todo;
 mod storage;
 
 use std::env;
-use todo::{Todo, TodoList};
+use std::error::Error;
+
+use todo::TodoList;
 
 fn main() {
+    if let Err(e) = run() {
+        eprintln!("error: {}", e);
+        std::process::exit(1);
+    }
+}
+
+// `run` returns Result so all error paths use `?` and surface a non-zero
+// exit code with a printed message instead of panicking.
+fn run() -> Result<(), Box<dyn Error>> {
     let args: Vec<String> = env::args().collect();
     if args.len() < 2 {
         print_usage();
-        return;
+        return Ok(());
     }
 
     let mut list = TodoList::load();
 
     match args[1].as_str() {
         "add" => {
-            // Issue 1: we slice off the program name but not the subcommand,
-            // so the first todo ends up being the literal word "add".
+            // Issue 1 fix: require at least one word of title beyond the
+            // subcommand, and join `args[2..]` so the literal word "add"
+            // is excluded.
+            if args.len() < 3 {
+                return Err("'add' needs a title".into());
+            }
             let title = args[2..].join(" ");
-            let item = Todo::new(title);
-            list.add(item);
-            list.save();
-            println!("Added todo #{}", list.len());
+            let id = list.add(title);
+            list.save()?;
+            println!("Added todo #{}", id);
         }
         "list" | "ls" => {
-            // Issue 2: off-by-one when there are zero items — the loop bound
-            // is `list.len() - 1` which underflows on an empty list.
-            for i in 0..list.len() - 1 {
+            // Issue 2 fix: iterate `0..list.len()` (no underflow on empty).
+            for i in 0..list.len() {
                 if let Some(t) = list.get(i) {
-                    println!("[{}] {} - {}", i, t.id, t.title);
+                    let mark = if t.done { "x" } else { " " };
+                    println!("[{}] [{}] #{} - {}", i, mark, t.id, t.title);
                 }
             }
         }
         "done" => {
-            // Issue 3: we never check that args[2] actually exists,
-            // and we pass it straight to parse without handling the error.
-            let idx: usize = args[2].parse().unwrap();
-            list.mark_done(idx);
-            list.save();
+            // Issue 3 fix: use the `parse_index` helper to validate input.
+            let idx = parse_index(&args, "done")?;
+            list.mark_done(idx)?;
+            list.save()?;
+            println!("Marked todo #{} as done", idx);
         }
         "remove" | "rm" => {
-            // Issue 4: same index parsing hazard as `done`, plus we
-            // don't validate the range.
-            let idx: usize = args[2].parse().unwrap();
-            list.remove(idx);
-            list.save();
+            // Issue 4 fix: safe parsing plus bounds-checked removal.
+            let idx = parse_index(&args, "remove")?;
+            list.remove(idx)?;
+            list.save()?;
+            println!("Removed todo #{}", idx);
         }
         "filter" => {
-            // Issue 5: filter is case-sensitive, so a search for
-            // "Buy" won't match a stored todo of "buy milk".
+            // Issue 5 fix is in `TodoList::filter` (case-insensitive).
+            if args.len() < 3 {
+                return Err("'filter' needs a needle".into());
+            }
             let needle = &args[2..].join(" ");
             for t in list.filter(needle) {
                 println!("- {}", t.title);
             }
         }
         "clear" => {
-            // Issue 6: this wipes the in-memory list but never persists
-            // the change, so the next run shows the same todos again.
+            // Issue 6 fix: persist the clear so it survives a restart.
             list.items.clear();
+            list.save()?;
+            println!("Cleared all todos.");
         }
         "help" | "-h" | "--help" => {
             print_usage();
@@ -67,10 +84,21 @@ fn main() {
             print_usage();
         }
     }
+    Ok(())
+}
+
+// Issue 3/4 helper: parse the id argument with friendly errors for both
+// "missing" and "not a number" instead of panicking via `unwrap`.
+fn parse_index(args: &[String], cmd: &str) -> Result<usize, Box<dyn Error>> {
+    let arg = args
+        .get(2)
+        .ok_or_else(|| format!("'{}' needs an id", cmd))?;
+    arg.parse::<usize>()
+        .map_err(|_| format!("'{}' id must be a number (got {:?})", cmd, arg).into())
 }
 
 fn print_usage() {
-    println!("todo — a small todo CLI (testing version, has known issues)");
+    println!("todo — a small todo CLI");
     println!();
     println!("USAGE:");
     println!("    todo <command> [args]");
