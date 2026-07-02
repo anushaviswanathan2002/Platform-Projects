@@ -10,7 +10,7 @@ RSpec.describe Todo::List do
       expect(list.items.size).to eq(2)
       expect(a).to eq(1)
       expect(b).to eq(2)
-      expect(list.items.first).to be_done?.and have_attributes(title: "buy milk")
+      expect(list.items.first).to have_attributes(title: "buy milk", done: false)
     end
 
     it "rejects empty/whitespace titles" do

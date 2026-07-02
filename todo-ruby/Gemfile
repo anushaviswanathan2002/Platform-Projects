@@ -1,5 +1,3 @@
 source "https://rubygems.org"
 
-# PLANTED ISSUE #1 (Dependency): rspec is pinned to a non-existent version.
-# This will make `bundle install` fail. Fix: change to a real version like "~> 3.13".
-gem "rspec", "3.99.0"
+gem "rspec", "~> 3.13"
